@@ -1,19 +1,146 @@
-import sys
-
-import torch
-
-sys.path.append('../')
 import os
-import numpy as np
-from utils import utils_image
-import torchvision.transforms as transforms
-from itertools import chain
-from torch.utils.data import Dataset
-from tool.common_tools import add_noise
+import sys
 import random
-import cv2
-import pdb
-from sys import getrefcount
+from pathlib import Path
+from itertools import chain
+sys.path.append('../')
+
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+from tifffile import imread
+
+from utils import utils_image
+from tool.common_tools import add_noise
+
+
+class CT_Dataset(Dataset):
+    def __init__(self, args, data_dir, mode='train', ori_image_size=True):
+        self.args = args
+        self.mode = mode
+        self.patch_size = args.patch_size
+        self.n_patches = args.n_pat_per_image
+        self.ori_image_size = ori_image_size
+        self.name_list = None
+        self.mode = mode
+        if mode == 'train':
+            self.clean_list, self.noisy_list = self.train_data_generator(data_dir)  # patches 的集合
+        else: # mode == test
+            self.clean_list, self.noisy_list, self.name_list = self.test_data_generator(data_dir)
+
+    def __getitem__(self, index):
+        clean_img = self.clean_list[index]
+        noisy_img = self.noisy_list[index]
+
+        # ----------------------------------------------------------------------
+        # HWC to CHW, numpy(uint) to tensor
+        # ----------------------------------------------------------------------
+        clean_img = utils_image.uint2tensor3(clean_img)
+        noisy_img = utils_image.uint2tensor3(noisy_img)
+
+        if self.name_list is None:
+            return clean_img, noisy_img
+        else:
+            return clean_img, noisy_img, self.name_list[index]
+
+    def __len__(self):
+        return len(self.clean_list)
+
+    def gen_patches(self, img_clean, img_noisy, patch_size=48, n=128, aug=True, aug_plus=False):
+        '''
+        :param img: input_img
+        :param patch_size:
+        :param n: a img generate n patches
+        :param aug: if need data augmentation or not
+        :return: a list of patches
+        '''
+
+        clean_patches = list()
+        noisy_patches = list()
+
+        ih, iw, _ = img_clean.shape
+
+        ip = patch_size
+
+        for _ in range(0, n):   # 一张图片产生n个patches
+            iy = random.randrange(0, ih - ip + 1)
+            ix = random.randrange(0, iw - ip + 1)
+
+            # --------------------------------
+            # get patch
+            # --------------------------------
+            patch_clean = img_clean[iy:iy+ip, ix:ix+ip, :]
+            patch_noisy = img_noisy[iy:iy+ip, ix:ix+ip, :]
+
+            # --------------------------------
+            # augmentation - flip, rotate
+            # --------------------------------
+            if aug:  # need augmentation
+                if aug_plus:
+                    mode = random.randint(0, 6)
+                    f_aug = utils_image.augment_img_plus
+                else:
+                    mode = random.randint(0, 7)
+                    f_aug = utils_image.augment_img
+            else:  # don't need augmentation
+                mode = 0
+                f_aug = utils_image.augment_img
+
+            patch_clean = f_aug(patch_clean, mode=mode)
+            patch_noisy = f_aug(patch_noisy, mode=mode)
+
+            clean_patches.append(patch_clean)
+            noisy_patches.append(patch_noisy)
+
+        return clean_patches, noisy_patches
+
+    def train_data_generator(self, data_dir):
+        clean_list = list()
+        noisy_list = list()
+
+        for clean_img_filepath in Path(data_dir, 'clean').glob('*.tif'):
+            noisy_img_filepath = Path(data_dir, 'noisy', clean_img_filepath.name)
+            if not noisy_img_filepath.exists():
+                continue
+
+            clean_img = imread(clean_img_filepath)
+            noisy_img = imread(noisy_img_filepath)
+            if clean_img is None or noisy_img is None:
+                continue
+
+            clean_img = np.float32(clean_img / 65535.)
+            noisy_img = np.float32(noisy_img / 65535.)
+
+            clean_patches, noisy_patches = self.gen_patches(clean_img, noisy_img,
+                                                            patch_size=self.patch_size,
+                                                            n=self.n_patches,
+                                                            aug_plus=False)
+            
+            clean_list.extend(clean_patches)
+            noisy_list.extend(noisy_patches)
+
+        return clean_list, noisy_list
+    
+    def test_data_generator(self, data_dir):
+        clean_list = list()
+        noisy_list = list()
+        name_list = list()
+
+        for clean_img_filepath in Path(data_dir, 'clean').glob('*.tif'):
+            noisy_img_filepath = Path(data_dir, 'noisy', clean_img_filepath.name)
+            if not noisy_img_filepath.exists():
+                continue
+
+            clean_img = imread(clean_img_filepath)
+            noisy_img = imread(noisy_img_filepath)
+            if clean_img is None or noisy_img is None:
+                continue
+
+            clean_list.append(clean_img)
+            noisy_list.append(noisy_img)
+            name_list.append(clean_img_filepath.name)
+
+        return clean_list, noisy_list, name_list
 
 
 class Art_nosie_Dataset(Dataset):   # 添加人工噪声
