@@ -58,7 +58,7 @@ class CT_Dataset(Dataset):
         clean_patches = list()
         noisy_patches = list()
 
-        ih, iw, _ = img_clean.shape
+        ih, iw = img_clean.shape
 
         ip = patch_size
 
@@ -69,8 +69,8 @@ class CT_Dataset(Dataset):
             # --------------------------------
             # get patch
             # --------------------------------
-            patch_clean = img_clean[iy:iy+ip, ix:ix+ip, :]
-            patch_noisy = img_noisy[iy:iy+ip, ix:ix+ip, :]
+            patch_clean = img_clean[iy:iy+ip, ix:ix+ip]
+            patch_noisy = img_noisy[iy:iy+ip, ix:ix+ip]
 
             # --------------------------------
             # augmentation - flip, rotate
@@ -133,6 +133,8 @@ class CT_Dataset(Dataset):
 
             clean_img = imread(clean_img_filepath)
             noisy_img = imread(noisy_img_filepath)
+            clean_img = np.float32(clean_img / 65535.)
+            noisy_img = np.float32(noisy_img / 65535.)
             if clean_img is None or noisy_img is None:
                 continue
 

@@ -46,15 +46,15 @@ parser.add_argument('--dir_test_img', type=str, default='result/result_img',
                     help='save the result of test img')
 parser.add_argument('--n_pat_per_image', type=int, default=256,
                     help='a image produce n patches')
-parser.add_argument('--train_dataset', type=str, default="CBSD432",
+parser.add_argument('--train_dataset', type=str, default="highdose",
                     help='Train dataset name')
-parser.add_argument('--test_dataset', type=str, default="CBSD68",
+parser.add_argument('--test_dataset', type=str, default="highdose",
                     help='Test dataset name')
 parser.add_argument('--aug_plus', action='store_true',
                     help='If use the data aug_plus')
-parser.add_argument('--dataset_dir_base', type=str, default="/data/zmh/dataset/data/images/",
+parser.add_argument('--dataset_dir_base', type=str, default="../data/",
                     help='If use the data aug_plus')
-parser.add_argument('--save_base', type=str, default='/data/zmh/',
+parser.add_argument('--save_base', type=str, default='../data/save/',
                     help='save the value of loss per epoch')
 parser.add_argument('--dir_loss', type=str, default='result/loss/',
                     help='save the value of loss per epoch')

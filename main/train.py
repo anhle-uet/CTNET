@@ -24,13 +24,15 @@ from tool.common_tools import save_to_file
 
 
 color = 'gray'
+max_value = 65535.
 My_Train_Dataset = CT_Dataset
 My_Test_Dataset = CT_Dataset
 
 dataset_base_dirpath = Path(args.dataset_dir_base).resolve()
-save_base_dirpath = Path(args.save_base)
-train_dirpath = Path(dataset_base_dirpath, 'train', args.train_dataset)
-test_dirpath = Path(dataset_base_dirpath, 'test', args.test_dataset)
+save_base_dirpath = Path(args.save_base).resolve()
+save_base_dirpath.mkdir(exist_ok=True, parents=True)
+train_dirpath = Path(dataset_base_dirpath, args.train_dataset, 'train')
+test_dirpath = Path(dataset_base_dirpath, args.test_dataset, 'test')
 save_model_dirpath = Path(save_base_dirpath, args.dir_model)
 save_state_dirpath = Path(save_base_dirpath, args.dir_state)
 save_loss_dirpath = Path(save_base_dirpath, args.dir_loss)
@@ -72,7 +74,6 @@ def test(args, data_loader, save_test_dir, save=False, model_file=None, loss_f=N
         img_name = img_name[0]
         # noise = torch.FloatTensor(ori_img.size()).normal_(mean=0, std=args.sigma / 255.)
 
-
         with torch.no_grad():
             nos_img = nos_img.to(device)
 
@@ -91,9 +92,9 @@ def test(args, data_loader, save_test_dir, save=False, model_file=None, loss_f=N
 
         loss_ = loss_f(output, ori_img) / 2.0
 
-        output = output.mul_(255. / args.rgb_range)
-        ori_img = ori_img.mul_(255. / args.rgb_range)
-        nos_img = nos_img.mul_(255. / args.rgb_range)
+        output = output.mul_(max_value)
+        ori_img = ori_img.mul_(max_value)
+        nos_img = nos_img.mul_(max_value)
 
         if args.n_colors == 3:
             output = output.permute(1, 2, 0)        # chw --> hwc
@@ -101,9 +102,9 @@ def test(args, data_loader, save_test_dir, save=False, model_file=None, loss_f=N
             nos_img = nos_img.permute(1, 2, 0)      # chw --> hwc
 
 
-        np_output = np.uint8(output.detach().clamp(0, 255).round().numpy())         # tensor --> np(intenger)
-        np_img_rgb = np.uint8(ori_img.detach().clamp(0, 255).round().numpy())       # tensor --> np(intenger)
-        np_img_nos = np.uint8(nos_img.detach().clamp(0, 255).round().numpy())       # tensor --> np(intenger)
+        np_output = np.uint16(output.detach().clamp(0, max_value).round().numpy())         # tensor --> np(intenger)
+        np_img_rgb = np.uint16(ori_img.detach().clamp(0, max_value).round().numpy())       # tensor --> np(intenger)
+        np_img_nos = np.uint16(nos_img.detach().clamp(0, max_value).round().numpy())       # tensor --> np(intenger)
 
         if save:
             img_save = np.hstack((np_img_rgb, np_output, np_img_nos))
@@ -253,7 +254,6 @@ def train(args):
 
         print("===============Epoch[{:0>3}/{:0>3}]  Train loss:{:.4f}  LR:{}=================".format(
             epoch+1, args.epochs, epoch_loss, optimizer.param_groups[0]["lr"]))
-        scheduler.step()
 
         # ======================================save=============================================================
         if args.flag == 0:
@@ -296,6 +296,8 @@ def train(args):
             save_to_file(os.path.join(save_loss_dirpath, args.model_name, color, str(args.sigma), 'train_result.txt'),
                          "\nTime: {}, Epoch: {},  Loss: {:.4f}, psnr: {:.4f},  ssim: {:.4f}, test_loss: {:.4f}"\
                          .format(time_str, epoch+1, epoch_loss, psnr_avg, ssim_avg, _loss))
+            
+        scheduler.step()
 
 
 if __name__ == '__main__':
